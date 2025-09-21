@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Real-time International Space Station tracking with 3D visualization">
+    <meta name="keywords" content="ISS, space station, tracking, satellite, orbit, space">
+    <meta name="author" content="SpaceTracker Pro">
+    
+    <title>SpaceTracker Pro - Live ISS Monitoring</title>
+    <link rel="icon" type="image/png" href="images/world.png">
+    
+    <!-- External Dependencies -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.10/css/all.css" 
+          integrity="sha384-+d0P83n9kaQMCwj8F4RJB66tzIwOKmrdb46+porD/OvrJ+37WqIM7UoBtwHO6Nlg" crossorigin="anonymous">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+
+<body>
+    <!-- Navigation Header -->
+    <nav class="navbar navbar-expand-lg fixed-top navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#" id="brand-link">
+                <img src="images/world.png" width="32" height="32" class="d-inline-block align-top" alt="SpaceTracker">
+                <span class="brand-text">SpaceTracker Pro</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation-menu">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navigation-menu">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="collapse" href="#layer-controls" role="button">
+                            <i class="fas fa-layer-group"></i>
+                            <span class="nav-text">Layers</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="collapse" href="#system-settings" role="button">
+                            <i class="fas fa-cogs"></i>
+                            <span class="nav-text">Settings</span>
+                        </a>
+                    </li>
+                </ul>
+                
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <button id="prediction-tool" class="btn btn-outline-primary">
+                            <i class="fas fa-calculator"></i>
+                            <span class="btn-text">Predict</span>
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button id="live-stream" class="btn btn-outline-success">
+                            <i class="fas fa-play"></i>
+                            <span class="btn-text">Live</span>
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button id="iss-data-toggle" class="btn btn-outline-info">
+                            <i class="fas fa-satellite"></i>
+                            <span class="btn-text">ISS Data</span>
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Application Container -->
+    <main class="app-container">
+        <!-- 3D Globe Visualization -->
+        <div id="globe-container" class="globe-container">
+            <canvas id="globe-canvas" class="globe-canvas">
+                <div class="browser-support-message">
+                    <h3>Browser Compatibility Required</h3>
+                    <p>Please use Chrome, Firefox, or Edge for the best experience.</p>
+                </div>
+            </canvas>
+        </div>
+        
+        <!-- Overlay Controls -->
+        <div class="overlay-controls">
+            <div class="control-panels">
+                <!-- Layer Management Panel -->
+                <div id="layer-controls" class="collapse control-panel">
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <h5 class="panel-title">
+                                <i class="fas fa-layer-group"></i>
+                                Layer Controls
+                            </h5>
+                            <button type="button" class="panel-close" data-dismiss="collapse" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="panel-body">
+                            <div class="layer-section">
+                                <h6 class="section-title">Base Layers</h6>
+                                <div class="layer-list" data-bind="template: { name: 'layer-item-template', foreach: baseLayers }"></div>
+                            </div>
+                            <hr class="section-divider">
+                            <div class="layer-section">
+                                <h6 class="section-title">Overlay Layers</h6>
+                                <div class="layer-list" data-bind="template: { name: 'layer-item-template', foreach: overlayLayers }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- System Settings Panel -->
+                <div id="system-settings" class="collapse control-panel">
+                    <div class="panel-card">
+                        <div class="panel-header">
+                            <h5 class="panel-title">
+                                <i class="fas fa-cogs"></i>
+                                System Settings
+                            </h5>
+                            <button type="button" class="panel-close" data-dismiss="collapse" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="panel-body">
+                            <div class="layer-section">
+                                <h6 class="section-title">Display Settings</h6>
+                                <div class="layer-list" data-bind="template: { name: 'layer-item-template', foreach: settingLayers }"></div>
+                            </div>
+                            <hr class="section-divider">
+                            <div class="layer-section">
+                                <h6 class="section-title">Debug Options</h6>
+                                <div class="layer-list" data-bind="template: { name: 'layer-item-template', foreach: debugLayers }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Search Results Modal -->
+        <div id="search-results-modal" class="modal fade" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i class="fas fa-search"></i>
+                            Search Results
+                        </h5>
+                        <button type="button" class="close" data-dismiss="modal">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="preview-container">
+                            <canvas id="preview-canvas" class="preview-canvas">
+                                <p>Preview not available</p>
+                            </canvas>
+                        </div>
+                        <div class="results-table-container">
+                            <div class="alert alert-warning" data-bind="visible: showApiWarning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                MapQuest API key missing. Get a free key at 
+                                <a href="https://developer.mapquest.com/" target="_blank">developer.mapquest.com</a>
+                                and configure the MAPQUEST_API_KEY variable.
+                            </div>
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Location Name</th>
+                                        <th>Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="template: { name: 'search-result-template', foreach: searchResults }"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" data-dismiss="modal" data-bind="enable: selected, click: gotoSelected">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Go to Location
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Prediction Modal -->
+    <div id="prediction-modal" class="prediction-modal" hidden>
+        <div class="prediction-card">
+            <div class="prediction-header">
+                <h2>
+                    <i class="fas fa-calculator"></i>
+                    ISS Prediction Tool
+                </h2>
+                <button id="prediction-close" class="btn-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="prediction-tabs">
+                <button id="time-prediction-tab" class="tab-button active">
+                    <i class="fas fa-clock"></i>
+                    Time → Position
+                </button>
+                <button id="location-prediction-tab" class="tab-button">
+                    <i class="fas fa-map-marker-alt"></i>
+                    Location → Passes
+                </button>
+            </div>
+            
+            <div id="time-prediction-panel" class="prediction-panel">
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label class="input-label">Date (UTC)</label>
+                        <input id="prediction-date" type="date" class="form-input" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Time (UTC)</label>
+                        <input id="prediction-time" type="time" step="1" class="form-input" />
+                    </div>
+                </div>
+                <button id="calculate-position" class="btn btn-primary">
+                    <i class="fas fa-calculator"></i>
+                    Calculate Position
+                </button>
+                <div id="position-output" class="output-container"></div>
+            </div>
+            
+            <div id="location-prediction-panel" class="prediction-panel" style="display: none;">
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label class="input-label">Country</label>
+                        <input id="location-country" list="country-options" class="form-input" placeholder="Enter country name..." />
+                        <datalist id="country-options"></datalist>
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">State/Province</label>
+                        <input id="location-state" list="state-options" class="form-input" placeholder="Enter state/province..." />
+                        <datalist id="state-options"></datalist>
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label class="input-label">City</label>
+                    <input id="location-city" list="city-options" class="form-input" placeholder="Enter city name..." />
+                    <datalist id="city-options"></datalist>
+                </div>
+                <div class="input-grid">
+                    <div class="input-group">
+                        <label class="input-label">Minimum Elevation (°)</label>
+                        <input id="min-elevation" type="number" min="0" max="30" value="10" class="form-input" />
+                    </div>
+                    <div class="input-group">
+                        <label class="input-label">Time Window (hours)</label>
+                        <input id="time-window" type="number" min="1" max="240" value="72" class="form-input" />
+                    </div>
+                </div>
+                <button id="find-passes" class="btn btn-primary">
+                    <i class="fas fa-search"></i>
+                    Find Passes
+                </button>
+                <div id="passes-output" class="output-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Stream Modal -->
+    <div id="live-stream-modal" class="live-stream-modal" hidden>
+        <div class="stream-container">
+            <div class="stream-header">
+                <h2>
+                    <i class="fas fa-video"></i>
+                    Live ISS Stream
+                </h2>
+                <button id="stream-close" class="btn-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="stream-content">
+                <video id="stream-video" 
+                       autoplay 
+                       muted 
+                       playsinline
+                       controls>
+                    <p>Your browser doesn't support video streaming.</p>
+                </video>
+                <div id="stream-controls" class="stream-controls">
+                    <button id="stream-start" class="btn btn-success">
+                        <i class="fas fa-play"></i>
+                        Start Stream
+                    </button>
+                    <button id="stream-stop" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-stop"></i>
+                        Stop Stream
+                    </button>
+                    <button id="stream-mute" class="btn btn-secondary">
+                        <i class="fas fa-volume-mute"></i>
+                        Mute
+                    </button>
+                </div>
+            </div>
+            <div class="stream-footer">
+                <p class="stream-description">
+                    Live video feed from the International Space Station
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ISS Data Panel -->
+    <div id="iss-data-panel" class="iss-data-panel"></div>
+
+    <!-- Knockout.js Templates -->
+    <script type="text/html" id="layer-item-template">
+        <button type="button" class="layer-item" data-bind="click: $root.toggleLayer, css: { active: $data.enabled }">
+            <span class="layer-name" data-bind="text: $data.displayName"></span>
+            <i class="fas fa-check layer-indicator" data-bind="visible: $data.enabled"></i>
+        </button>
+    </script>
+    
+    <script type="text/html" id="search-result-template">
+        <tr data-bind="click: $parent.previewSelection" class="search-result-row">
+            <td data-bind="text: $data.display_name"></td>
+            <td data-bind="text: $data.type"></td>
+        </tr>
+    </script>
+
+    <!-- External Scripts -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" 
+            integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" 
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" 
+            integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" 
+            crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" 
+            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" 
+            crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.4.2/knockout-min.js"></script>
+    <script src="https://unpkg.com/worldwindjs@1.7.0/build/dist/worldwind.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.1.3/satellite.min.js" 
+            integrity="sha512-JxDmggH93+jdpfW+JF5CgtX1VNBAsvZVbswpqCtTMPyRvPkI+BMdm0L7JR9fbjxEoWt93AyPeiK0OrvfQWx++A==" 
+            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://unpkg.com/tle.js@^4"></script>
+    
+    <!-- Application Scripts -->
+    <script type="module" src="scripts/main.js"></script>
+    <script src="scripts/iss-data-manager.js"></script>
+    <script src="scripts/prediction-manager.js"></script>
+    <script src="scripts/stream-manager.js"></script>
+</body>
+</html>
