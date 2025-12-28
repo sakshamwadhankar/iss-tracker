@@ -19,7 +19,7 @@ export default class LayerController {
     this.baseLayers = ko.observableArray(
       this.spaceGlobe.getLayersByCategory('base').reverse()
     );
-    
+
     this.overlayLayers = ko.observableArray(
       this.spaceGlobe.getLayersByCategory('overlay').reverse()
     );
@@ -50,8 +50,9 @@ export default class LayerController {
    * Toggle layer visibility
    */
   toggleLayer = (layer) => {
+    console.log('LayerController: Toggling layer', layer.displayName);
     this.spaceGlobe.toggleLayer(layer);
-    
+
     // If layer is enabled and has a bounding box, zoom to it
     if (layer.enabled && layer.bbox) {
       this.spaceGlobe.zoomToLayer(layer);
@@ -208,7 +209,7 @@ export default class LayerController {
   importLayerConfig(configString) {
     try {
       const config = JSON.parse(configString);
-      
+
       config.forEach(layerConfig => {
         const layer = this.spaceGlobe.findLayerByName(layerConfig.name);
         if (layer) {
@@ -244,11 +245,11 @@ export default class LayerController {
   showOnlyLayer(targetLayer) {
     const category = this.getLayerCategory(targetLayer);
     const categoryLayers = this.spaceGlobe.getLayersByCategory(category);
-    
+
     categoryLayers.forEach(layer => {
       layer.enabled = (layer === targetLayer);
     });
-    
+
     this.spaceGlobe.redraw();
   }
 

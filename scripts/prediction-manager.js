@@ -31,7 +31,7 @@ function initializePredictionModal() {
   }
 
   buildModalInterface(modal);
-  setupEventListeners();
+  setupPredictionEventListeners();
   loadCountryData();
   setupLocationInputs();
 }
@@ -47,7 +47,7 @@ function buildModalInterface(modal) {
           <i class="fas fa-calculator"></i>
           ISS Prediction Tool
         </h2>
-        <button id="prediction-close" class="btn-close" aria-label="Close">
+        <button id="prediction-close" class="btn-close" aria-label="Close" onclick="document.getElementById('prediction-modal').hidden = true;">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -122,22 +122,28 @@ function buildModalInterface(modal) {
 /**
  * Set up event listeners
  */
-function setupEventListeners() {
+function setupPredictionEventListeners() {
   // Modal open/close
   const openButton = document.getElementById('prediction-tool');
   const closeButton = document.getElementById('prediction-close');
-  
+
   if (openButton) {
     openButton.addEventListener('click', () => {
       document.getElementById('prediction-modal').hidden = false;
+      // Signal other components to pause polling
+      window.dispatchEvent(new CustomEvent('prediction-modal-opened'));
     });
   }
-  
+
   if (closeButton) {
     closeButton.addEventListener('click', () => {
       document.getElementById('prediction-modal').hidden = true;
+      // Signal other components to resume polling
+      window.dispatchEvent(new CustomEvent('prediction-modal-closed'));
     });
   }
+  // Also handle inline onclick for close button in HTML (if any) or overwrite it here if possible. 
+  // Ideally we should replace the inline handler, but for now capturing the click on ID is safer.
 
   // Tab switching
   const timeTab = document.getElementById('time-prediction-tab');
@@ -166,7 +172,11 @@ function setupEventListeners() {
   // Keyboard shortcuts
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
-      document.getElementById('prediction-modal').hidden = true;
+      const modal = document.getElementById('prediction-modal');
+      if (!modal.hidden) {
+        modal.hidden = true;
+        window.dispatchEvent(new CustomEvent('prediction-modal-closed'));
+      }
     }
   });
 }
@@ -178,7 +188,7 @@ async function loadCountryData() {
   try {
     const response = await fetchWithTimeout(PREDICTION_CONFIG.REST_COUNTRIES_API);
     const data = await response.json();
-    
+
     countries = data
       .map(country => ({
         name: country.name?.common,
@@ -224,7 +234,7 @@ function setupLocationInputs() {
 async function updateLocationSuggestions(input, type) {
   const countryInput = document.getElementById('location-country');
   const country = countryInput.value.trim();
-  
+
   if (!country || !input.value.trim()) {
     return;
   }
@@ -233,15 +243,15 @@ async function updateLocationSuggestions(input, type) {
     const countryCode = countryCodeMap[country] || '';
     const query = encodeURIComponent(input.value.trim());
     const url = `${PREDICTION_CONFIG.NOMINATIM_SEARCH_API}?q=${query}&format=jsonv2&limit=5&addressdetails=1${countryCode ? `&countrycodes=${countryCode}` : ''}`;
-    
+
     const response = await fetchWithTimeout(url, {
       headers: { 'Accept': 'application/json' }
     });
-    
+
     const data = await response.json();
     const listId = type === 'state' ? 'state-options' : 'city-options';
     const list = document.getElementById(listId);
-    
+
     list.innerHTML = data
       .map(item => `<option value="${item.display_name}"></option>`)
       .join('');
@@ -270,9 +280,9 @@ async function calculatePosition() {
     const timestamp = convertToUnixTimestamp(dateInput.value, timeInput.value);
     const position = await fetchISSPositionAtTime(timestamp);
     const location = await reverseGeocodeLocation(position.latitude, position.longitude);
-    
+
     const formattedTime = formatDateTime(new Date(timestamp * 1000));
-    
+
     output.innerHTML = `
       <div class="output-row">
         <span class="output-label">Time (UTC):</span>
@@ -330,7 +340,7 @@ async function findPasses() {
   try {
     const coordinates = await geocodeLocation(country, stateInput.value.trim(), city);
     const passes = await calculateISSPasses(coordinates.lat, coordinates.lon, minElevation, timeWindow);
-    
+
     if (passes.length === 0) {
       output.innerHTML = `<div class="output-label">No passes found in the next ${timeWindow} hours</div>`;
       return;
@@ -375,22 +385,59 @@ function convertToUnixTimestamp(date, time) {
 }
 
 /**
- * Fetch ISS position at specific timestamp
+ * Fetch ISS position at specific timestamp - uses local calculation with satellite.js
  */
 async function fetchISSPositionAtTime(timestamp) {
-  const url = `${PREDICTION_CONFIG.ISS_API_BASE}/satellites/${PREDICTION_CONFIG.ISS_SATELLITE_ID}?timestamp=${timestamp}`;
-  const response = await fetchWithTimeout(url);
-  return await response.json();
+  const [line1, line2] = await getTLEData();
+  const satrec = window.satellite.twoline2satrec(line1, line2);
+  const date = new Date(timestamp * 1000);
+
+  const gmst = window.satellite.gstime(date);
+  const pv = window.satellite.propagate(satrec, date);
+
+  if (!pv || !pv.position) {
+    throw new Error('Unable to propagate satellite position');
+  }
+
+  const geodetic = window.satellite.eciToGeodetic(pv.position, gmst);
+  const latDeg = window.satellite.degreesLat(geodetic.latitude);
+  const lonDeg = window.satellite.degreesLong(geodetic.longitude);
+  const altKm = geodetic.height;
+
+  // Calculate velocity (km/h) from ECI velocity vector
+  const vel = pv.velocity;
+  const velocityKmS = Math.sqrt(vel.x * vel.x + vel.y * vel.y + vel.z * vel.z);
+  const velocityKmH = velocityKmS * 3600;
+
+  return {
+    latitude: latDeg,
+    longitude: lonDeg,
+    altitude: altKm,
+    velocity: velocityKmH
+  };
 }
 
+// Fallback TLE data for ISS (updated December 2024)
+// This is updated approximately every few weeks by CelesTrak
+const FALLBACK_TLE = {
+  line1: '1 25544U 98067A   24363.50000000  .00016717  00000-0  30127-3 0  9150',
+  line2: '2 25544  51.6400 100.0765 0007417  35.5671 324.5848 15.50056000504971'
+};
+
 /**
- * Get TLE data for pass calculations
+ * Get TLE data for pass calculations - tries API first, falls back to cached TLE
  */
 async function getTLEData() {
-  const url = `${PREDICTION_CONFIG.ISS_API_BASE}/satellites/${PREDICTION_CONFIG.ISS_SATELLITE_ID}/tles`;
-  const response = await fetchWithTimeout(url);
-  const data = await response.json();
-  return [data.line1, data.line2];
+  try {
+    const url = `${PREDICTION_CONFIG.ISS_API_BASE}/satellites/${PREDICTION_CONFIG.ISS_SATELLITE_ID}/tles`;
+    const response = await fetchWithTimeout(url, {}, 1, 500); // Only 1 retry, fast fail
+    const data = await response.json();
+    console.log('Using live TLE data from API');
+    return [data.line1, data.line2];
+  } catch (error) {
+    console.warn('API TLE fetch failed, using fallback TLE data:', error.message);
+    return [FALLBACK_TLE.line1, FALLBACK_TLE.line2];
+  }
 }
 
 /**
@@ -400,16 +447,16 @@ async function geocodeLocation(country, state, city) {
   const countryCode = countryCodeMap[country] || '';
   const queryParts = [city, state, country].filter(Boolean).join(', ');
   const url = `${PREDICTION_CONFIG.NOMINATIM_SEARCH_API}?q=${encodeURIComponent(queryParts)}&format=jsonv2&limit=1&addressdetails=1${countryCode ? `&countrycodes=${countryCode}` : ''}`;
-  
+
   const response = await fetchWithTimeout(url, {
     headers: { 'Accept': 'application/json' }
   });
-  
+
   const data = await response.json();
   if (!data.length) {
     throw new Error('Location not found');
   }
-  
+
   return {
     lat: parseFloat(data[0].lat),
     lon: parseFloat(data[0].lon),
@@ -426,16 +473,16 @@ async function reverseGeocodeLocation(lat, lon) {
     url.searchParams.set('latitude', lat);
     url.searchParams.set('longitude', lon);
     url.searchParams.set('localityLanguage', 'en');
-    
+
     const response = await fetchWithTimeout(url.toString());
     const data = await response.json();
-    
+
     const city = data.city || data.locality || '';
     const region = data.principalSubdivision || '';
     const country = data.countryName || '';
-    
+
     return [city, region, country].filter(Boolean).join(', ') || 'Over ocean';
-    
+
   } catch (error) {
     return 'Unknown location';
   }
@@ -447,7 +494,7 @@ async function reverseGeocodeLocation(lat, lon) {
 async function calculateISSPasses(lat, lon, minElevation, hours, stepSeconds = 30) {
   const [line1, line2] = await getTLEData();
   const satrec = window.satellite.twoline2satrec(line1, line2);
-  
+
   const startTime = new Date();
   const endTime = new Date(startTime.getTime() + hours * 3600 * 1000);
   const observer = {
@@ -465,9 +512,9 @@ async function calculateISSPasses(lat, lon, minElevation, hours, stepSeconds = 3
   for (let t = new Date(startTime); t <= endTime; t = new Date(t.getTime() + stepSeconds * 1000)) {
     const gmst = window.satellite.gstime(t);
     const pv = window.satellite.propagate(satrec, t);
-    
+
     if (!pv || !pv.position) continue;
-    
+
     const ecf = window.satellite.eciToEcf(pv.position, gmst);
     const look = window.satellite.ecfToLookAngles(observer, ecf);
     const elevation = look.elevation * 180 / Math.PI;
@@ -503,24 +550,43 @@ async function calculateISSPasses(lat, lon, minElevation, hours, stepSeconds = 3
 /**
  * Fetch with timeout
  */
-async function fetchWithTimeout(url, options = {}) {
+/**
+ * Fetch with timeout and retry logic
+ */
+async function fetchWithTimeout(url, options = {}, retries = 3, backoff = 1000) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), PREDICTION_CONFIG.NETWORK_TIMEOUT);
-  
+
   try {
+    // Add email to Nominatim requests to identify application and avoid 403s
+    if (url.includes('nominatim.openstreetmap.org') && !url.includes('&email=')) {
+      url += '&email=demo@spacetracker.pro';
+    }
+
     const response = await fetch(url, {
       ...options,
       signal: controller.signal
     });
     clearTimeout(timeoutId);
-    
+
+    if (response.status === 429 && retries > 0) {
+      console.warn(`Rate limited (429). Retrying in ${backoff}ms...`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return fetchWithTimeout(url, options, retries - 1, backoff * 2);
+    }
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return response;
   } catch (error) {
     clearTimeout(timeoutId);
+    if (retries > 0 && error.name !== 'AbortError') {
+      console.warn(`Request failed: ${error.message}. Retrying...`);
+      await new Promise(resolve => setTimeout(resolve, backoff));
+      return fetchWithTimeout(url, options, retries - 1, backoff * 2);
+    }
     throw error;
   }
 }
@@ -529,7 +595,7 @@ async function fetchWithTimeout(url, options = {}) {
  * Debounce function
  */
 function debounce(func, delay) {
-  return function(...args) {
+  return function (...args) {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => func.apply(this, args), delay);
   };

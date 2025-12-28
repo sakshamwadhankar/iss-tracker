@@ -5,7 +5,7 @@
   "main": "index.html",
   "scripts": {
     "start": "npx http-server . -p 8080 -o",
-    "dev": "npx http-server . -p 8080 -o --cors",
+    "dev": "npx http-server . -p 8080 -o --cors -c-1",
     "build": "npm run build:css && npm run build:js",
     "build:css": "npx postcss styles/main.css -o dist/styles/main.min.css --use autoprefixer --use cssnano",
     "build:js": "npx rollup scripts/main.js -o dist/scripts/main.min.js -f iife",
@@ -144,6 +144,8 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.ts"]
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.ts"
+    ]
   }
 }

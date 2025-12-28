@@ -24,7 +24,7 @@ class ISSDataManager {
     this.currentLocation = 'Locating...';
     this.updateInterval = null;
     this.isVisible = false;
-    
+
     this.initializePanel();
     this.setupEventListeners();
     this.startDataUpdates();
@@ -74,6 +74,17 @@ class ISSDataManager {
         this.hidePanel();
       }
     });
+
+    // Pause updates when prediction modal is open (to avoid rate limits)
+    window.addEventListener('prediction-modal-opened', () => {
+      console.log('prediction modal opened: pausing ISS data updates');
+      this.stopDataUpdates();
+    });
+
+    window.addEventListener('prediction-modal-closed', () => {
+      console.log('prediction modal closed: resuming ISS data updates');
+      this.startDataUpdates();
+    });
   }
 
   /**
@@ -93,7 +104,7 @@ class ISSDataManager {
   showPanel() {
     this.dataPanel.classList.add('visible');
     this.isVisible = true;
-    
+
     // Update button state
     const toggleButton = document.getElementById('iss-data-toggle');
     if (toggleButton) {
@@ -110,7 +121,7 @@ class ISSDataManager {
   hidePanel() {
     this.dataPanel.classList.remove('visible');
     this.isVisible = false;
-    
+
     // Update button state
     const toggleButton = document.getElementById('iss-data-toggle');
     if (toggleButton) {
@@ -127,7 +138,7 @@ class ISSDataManager {
   adjustUIForPanel() {
     const layersCard = document.getElementById('layer-controls');
     const settingsCard = document.getElementById('system-settings');
-    
+
     if (layersCard) layersCard.classList.add('cards-adjusted');
     if (settingsCard) settingsCard.classList.add('cards-adjusted');
   }
@@ -138,7 +149,7 @@ class ISSDataManager {
   restoreUIFromPanel() {
     const layersCard = document.getElementById('layer-controls');
     const settingsCard = document.getElementById('system-settings');
-    
+
     if (layersCard) layersCard.classList.remove('cards-adjusted');
     if (settingsCard) settingsCard.classList.remove('cards-adjusted');
   }
@@ -161,6 +172,11 @@ class ISSDataManager {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
     }
+    // Abort any in-flight request
+    if (this.currentController) {
+      this.currentController.abort();
+      this.currentController = null;
+    }
   }
 
   /**
@@ -170,14 +186,16 @@ class ISSDataManager {
     try {
       const issData = await this.fetchISSPosition();
       this.renderData(issData);
-      
+
       // Check if we should update location
       if (this.shouldUpdateLocation(issData.latitude, issData.longitude)) {
         this.updateLocation(issData.latitude, issData.longitude);
       }
-      
+
     } catch (error) {
-      console.warn('Failed to update ISS data:', error);
+      if (error.name !== 'AbortError') {
+        console.warn('Failed to update ISS data:', error);
+      }
       // Keep showing last known data
     }
   }
@@ -186,26 +204,34 @@ class ISSDataManager {
    * Fetch ISS position from API
    */
   async fetchISSPosition() {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ISS_CONFIG.NETWORK_TIMEOUT);
-    
+    // Abort previous request if any
+    if (this.currentController) {
+      this.currentController.abort();
+    }
+
+    this.currentController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      if (this.currentController) this.currentController.abort();
+    }, ISS_CONFIG.NETWORK_TIMEOUT);
+
     try {
       const response = await fetch(ISS_CONFIG.ISS_API_ENDPOINT, {
-        signal: controller.signal,
+        signal: this.currentController.signal,
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'SpaceTracker Pro/1.0'
         }
       });
-      
+
       clearTimeout(timeoutId);
-      
+      this.currentController = null;
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       return {
         latitude: parseFloat(data.latitude),
         longitude: parseFloat(data.longitude),
@@ -213,9 +239,10 @@ class ISSDataManager {
         velocity: parseFloat(data.velocity),
         timestamp: parseInt(data.timestamp)
       };
-      
+
     } catch (error) {
       clearTimeout(timeoutId);
+      this.currentController = null;
       throw error;
     }
   }
@@ -228,10 +255,10 @@ class ISSDataManager {
     const timeDelta = now - this.lastGeocodeTime;
     const latDelta = this.lastLatitude === null ? Infinity : Math.abs(latitude - this.lastLatitude);
     const lonDelta = this.lastLongitude === null ? Infinity : Math.abs(longitude - this.lastLongitude);
-    
-    return latDelta > ISS_CONFIG.MIN_DISTANCE_DELTA || 
-           lonDelta > ISS_CONFIG.MIN_DISTANCE_DELTA || 
-           timeDelta > ISS_CONFIG.GEOCODE_THROTTLE;
+
+    return latDelta > ISS_CONFIG.MIN_DISTANCE_DELTA ||
+      lonDelta > ISS_CONFIG.MIN_DISTANCE_DELTA ||
+      timeDelta > ISS_CONFIG.GEOCODE_THROTTLE;
   }
 
   /**
@@ -244,13 +271,13 @@ class ISSDataManager {
       this.lastGeocodeTime = Date.now();
       this.lastLatitude = latitude;
       this.lastLongitude = longitude;
-      
+
       // Re-render with updated location
       const currentData = this.getCurrentData();
       if (currentData) {
         this.renderData(currentData);
       }
-      
+
     } catch (error) {
       console.warn('Failed to update location:', error);
     }
@@ -290,11 +317,11 @@ class ISSDataManager {
     }
 
     const data = await response.json();
-    
+
     const city = data.city || data.locality || (data.localityInfo?.administrative?.[0]?.name) || '';
     const region = data.principalSubdivision || '';
     const country = data.countryName || '';
-    
+
     if (city || region || country) {
       return [city, region, country].filter(Boolean).join(', ');
     } else if (data.localityInfo?.informative?.length) {
@@ -327,13 +354,13 @@ class ISSDataManager {
 
     const data = await response.json();
     const address = data.address || {};
-    
+
     const city = address.city || address.town || address.village || address.hamlet || '';
     const state = address.state || address.region || '';
     const country = address.country || '';
-    
-    return [city, state, country].filter(Boolean).join(', ') || 
-           (data.display_name || 'Unknown location');
+
+    return [city, state, country].filter(Boolean).join(', ') ||
+      (data.display_name || 'Unknown location');
   }
 
   /**

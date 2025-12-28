@@ -24,14 +24,14 @@ const STREAM_CONFIG = {
 function initializeStreamManager() {
   const streamButton = document.getElementById('live-stream');
   const streamModal = document.getElementById('live-stream-modal');
-  
+
   if (!streamButton || !streamModal) {
     console.error('Stream elements not found');
     return;
   }
 
   setupStreamModal(streamModal);
-  setupEventListeners(streamButton, streamModal);
+  setupStreamEventListeners(streamButton, streamModal);
 }
 
 /**
@@ -43,38 +43,37 @@ function setupStreamModal(modal) {
       <div class="stream-header">
         <h2>
           <i class="fas fa-video"></i>
-          Live Camera Stream
+          Live ISS Feeds
         </h2>
         <button id="stream-close" class="btn-close" aria-label="Close">
           <i class="fas fa-times"></i>
         </button>
       </div>
-      <div class="stream-content">
-        <video id="stream-video" 
-               autoplay 
-               muted 
-               playsinline
-               controls>
-          <p>Your browser doesn't support video streaming.</p>
-        </video>
-        <div id="stream-controls" class="stream-controls">
-          <button id="stream-start" class="btn btn-success">
-            <i class="fas fa-play"></i>
-            Start Stream
-          </button>
-          <button id="stream-stop" class="btn btn-danger" style="display: none;">
-            <i class="fas fa-stop"></i>
-            Stop Stream
-          </button>
-          <button id="stream-mute" class="btn btn-secondary">
-            <i class="fas fa-volume-mute"></i>
-            Mute
-          </button>
+      <div class="stream-content youtube-grid">
+        <div class="video-wrapper">
+          <h3><i class="fas fa-globe-americas"></i> Outer View (EHDC)</h3>
+          <iframe 
+            src="https://www.youtube.com/embed/Hj1XwNjvkDE?autoplay=1&mute=1&controls=1&loop=1&playlist=Hj1XwNjvkDE&rel=0" 
+            title="ISS Outer View" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
+        </div>
+        <div class="video-wrapper">
+          <h3><i class="fas fa-window-maximize"></i> Inner View</h3>
+          <iframe 
+            src="https://www.youtube.com/embed/iYmvCUonukw?autoplay=1&mute=1&controls=1&loop=1&playlist=iYmvCUonukw&rel=0" 
+            title="ISS Inner View" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
         </div>
       </div>
       <div class="stream-footer">
         <p class="stream-description">
-          Live camera feed from your device
+          Official live streams from the International Space Station
         </p>
       </div>
     </div>
@@ -84,15 +83,8 @@ function setupStreamModal(modal) {
 /**
  * Set up event listeners
  */
-function setupEventListeners(streamButton, streamModal) {
+function setupStreamEventListeners(streamButton, streamModal) {
   const closeButton = document.getElementById('stream-close');
-  const videoElement = document.getElementById('stream-video');
-  const startButton = document.getElementById('stream-start');
-  const stopButton = document.getElementById('stream-stop');
-  const muteButton = document.getElementById('stream-mute');
-
-  let currentStream = null;
-  let isMuted = true;
 
   // Open stream modal
   streamButton.addEventListener('click', () => {
@@ -100,27 +92,20 @@ function setupEventListeners(streamButton, streamModal) {
     streamModal.hidden = false;
   });
 
-  // Close stream modal
+  // Close stream modal logic
   function closeStreamModal() {
     streamModal.hidden = true;
-    stopStream();
+    // Stop videos by resetting src (stops audio/buffering)
+    const iframes = streamModal.querySelectorAll('iframe');
+    iframes.forEach(iframe => {
+      const src = iframe.src;
+      iframe.src = src;
+    });
   }
 
-  closeButton.addEventListener('click', closeStreamModal);
-
-  // Start stream button
-  if (startButton) {
-    startButton.addEventListener('click', startStream);
-  }
-
-  // Stop stream button
-  if (stopButton) {
-    stopButton.addEventListener('click', stopStream);
-  }
-
-  // Mute/unmute button
-  if (muteButton) {
-    muteButton.addEventListener('click', toggleMute);
+  // Bind close events
+  if (closeButton) {
+    closeButton.addEventListener('click', closeStreamModal);
   }
 
   // Close on ESC key
@@ -136,72 +121,6 @@ function setupEventListeners(streamButton, streamModal) {
       closeStreamModal();
     }
   });
-
-  // Handle video events
-  if (videoElement) {
-    videoElement.addEventListener('loadedmetadata', () => {
-      console.log('Video stream loaded');
-    });
-
-    videoElement.addEventListener('error', (error) => {
-      console.error('Failed to load video stream:', error);
-      showStreamError('Failed to access camera. Please check permissions and try again.');
-    });
-  }
-
-  // Start stream function
-  async function startStream() {
-    try {
-      console.log('Requesting camera access...');
-      currentStream = await navigator.mediaDevices.getUserMedia(STREAM_CONFIG.VIDEO_CONSTRAINTS);
-      
-      if (videoElement) {
-        videoElement.srcObject = currentStream;
-        videoElement.play();
-      }
-
-      // Update button states
-      if (startButton) startButton.style.display = 'none';
-      if (stopButton) stopButton.style.display = 'inline-block';
-      
-      console.log('Camera stream started');
-    } catch (error) {
-      console.error('Failed to start camera stream:', error);
-      showStreamError('Camera access denied or not available. Please check permissions.');
-    }
-  }
-
-  // Stop stream function
-  function stopStream() {
-    if (currentStream) {
-      currentStream.getTracks().forEach(track => track.stop());
-      currentStream = null;
-    }
-
-    if (videoElement) {
-      videoElement.srcObject = null;
-    }
-
-    // Update button states
-    if (startButton) startButton.style.display = 'inline-block';
-    if (stopButton) stopButton.style.display = 'none';
-    
-    console.log('Camera stream stopped');
-  }
-
-  // Toggle mute function
-  function toggleMute() {
-    if (videoElement) {
-      videoElement.muted = !videoElement.muted;
-      isMuted = videoElement.muted;
-      
-      // Update button icon
-      const icon = muteButton.querySelector('i');
-      if (icon) {
-        icon.className = isMuted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
-      }
-    }
-  }
 }
 
 /**
@@ -210,7 +129,7 @@ function setupEventListeners(streamButton, streamModal) {
 function getStreamStatus() {
   const streamModal = document.getElementById('live-stream-modal');
   const videoElement = document.getElementById('stream-video');
-  
+
   return {
     isOpen: !streamModal.hidden,
     isStreaming: videoElement && videoElement.srcObject !== null,
@@ -349,13 +268,13 @@ function trackStreamEvent(event, data = {}) {
 function initializeStreamAnalytics() {
   const streamButton = document.getElementById('live-stream');
   const streamModal = document.getElementById('live-stream-modal');
-  
+
   if (streamButton) {
     streamButton.addEventListener('click', () => {
       trackStreamEvent('stream_opened');
     });
   }
-  
+
   if (streamModal) {
     const closeButton = document.getElementById('stream-close');
     if (closeButton) {
