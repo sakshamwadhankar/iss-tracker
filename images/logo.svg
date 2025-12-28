@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Gradient for the glow effect -->
+    <radialGradient id="earthGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a3a4a"/>
+      <stop offset="70%" stop-color="#0d1117"/>
+      <stop offset="100%" stop-color="#0a0a0f"/>
+    </radialGradient>
+    
+    <!-- Gradient for the orbital ring -->
+    <linearGradient id="orbitGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.2"/>
+      <stop offset="50%" stop-color="#00d4ff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#00ff88" stop-opacity="0.8"/>
+    </linearGradient>
+    
+    <!-- Glow filter -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Strong glow for satellite -->
+    <filter id="strongGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="250" fill="#0a0a0f"/>
+  
+  <!-- Earth sphere -->
+  <circle cx="256" cy="256" r="120" fill="url(#earthGlow)" stroke="#00d4ff" stroke-width="2" stroke-opacity="0.3"/>
+  
+  <!-- Continent shapes (simplified) -->
+  <g fill="#00d4ff" fill-opacity="0.15">
+    <ellipse cx="220" cy="230" rx="35" ry="25" transform="rotate(-15 220 230)"/>
+    <ellipse cx="290" cy="260" rx="40" ry="30" transform="rotate(10 290 260)"/>
+    <ellipse cx="240" cy="290" rx="25" ry="15"/>
+  </g>
+  
+  <!-- Grid lines on Earth -->
+  <g stroke="#00d4ff" stroke-opacity="0.1" fill="none" stroke-width="1">
+    <ellipse cx="256" cy="256" rx="120" ry="40"/>
+    <ellipse cx="256" cy="256" rx="120" ry="80"/>
+    <ellipse cx="256" cy="256" rx="40" ry="120"/>
+    <ellipse cx="256" cy="256" rx="80" ry="120"/>
+  </g>
+  
+  <!-- Orbital ring -->
+  <ellipse cx="256" cy="256" rx="190" ry="70" 
+           fill="none" 
+           stroke="url(#orbitGradient)" 
+           stroke-width="3"
+           stroke-linecap="round"
+           transform="rotate(-25 256 256)"
+           filter="url(#glow)"/>
+  
+  <!-- Orbital trail (dashed) -->
+  <ellipse cx="256" cy="256" rx="190" ry="70" 
+           fill="none" 
+           stroke="#00d4ff" 
+           stroke-width="1.5"
+           stroke-dasharray="8 12"
+           stroke-opacity="0.4"
+           transform="rotate(-25 256 256)"/>
+  
+  <!-- ISS/Satellite -->
+  <g transform="translate(400, 175) rotate(65)" filter="url(#strongGlow)">
+    <!-- Main body -->
+    <rect x="-12" y="-6" width="24" height="12" rx="3" fill="#00d4ff"/>
+    <!-- Solar panels -->
+    <rect x="-40" y="-3" width="25" height="6" rx="1" fill="#00ff88"/>
+    <rect x="15" y="-3" width="25" height="6" rx="1" fill="#00ff88"/>
+    <!-- Panel lines -->
+    <line x1="-35" y1="-3" x2="-35" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+    <line x1="-28" y1="-3" x2="-28" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+    <line x1="-21" y1="-3" x2="-21" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+    <line x1="20" y1="-3" x2="20" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+    <line x1="27" y1="-3" x2="27" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+    <line x1="34" y1="-3" x2="34" y2="3" stroke="#0a0a0f" stroke-width="1"/>
+  </g>
+  
+  <!-- Satellite trail effect -->
+  <g transform="rotate(-25 256 256)">
+    <circle cx="395" cy="186" r="4" fill="#00d4ff" opacity="0.6"/>
+    <circle cx="380" cy="193" r="3" fill="#00d4ff" opacity="0.4"/>
+    <circle cx="365" cy="198" r="2" fill="#00d4ff" opacity="0.2"/>
+  </g>
+  
+  <!-- Outer ring accent -->
+  <circle cx="256" cy="256" r="245" fill="none" stroke="#00d4ff" stroke-width="1" stroke-opacity="0.2"/>
+  <circle cx="256" cy="256" r="248" fill="none" stroke="#00ff88" stroke-width="0.5" stroke-opacity="0.1"/>
+</svg>

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/world.png" alt="SpaceTracker Pro Logo" width="120" height="120">
+  <img src="images/logo.svg" alt="SpaceTracker Pro Logo" width="150" height="150">
 </p>
 
 <h1 align="center">🛰️ SpaceTracker Pro</h1>
