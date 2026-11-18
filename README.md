@@ -1,4 +1,4 @@
-PLACEHOLDER_BANNER
+> 🥈 **HACKATHON — 1st RUNNER-UP — CYGNUS** | Organized by Raisoni, Nagpur.
 
 <p align="center">
   <img src="images/logo.svg" alt="SpaceTracker Pro Logo" width="150" height="150">
