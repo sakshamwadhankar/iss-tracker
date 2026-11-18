@@ -1,3 +1,5 @@
+> 🥈 **HACKATHON — 1st RUNNER-UP** | Organized by a partner college/committee.
+
 <p align="center">
   <img src="images/logo.svg" alt="SpaceTracker Pro Logo" width="150" height="150">
 </p>
